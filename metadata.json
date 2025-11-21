@@ -1,0 +1,5 @@
+{
+  "name": "Dynamic Brain PMM Dashboard",
+  "description": "A visualization dashboard for the Dynamic Brain PMM System, demonstrating self-expanding memory and neuro-symbolic architecture concepts.",
+  "requestFramePermissions": []
+}
