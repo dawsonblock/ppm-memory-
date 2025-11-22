@@ -1,12 +1,15 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { Brain, Zap, Play, Pause, RefreshCw, AlertTriangle, Plus, Maximize, Settings } from 'lucide-react';
+import { Brain, Play, Pause, RefreshCw, AlertTriangle, Plus, Maximize, Settings, GraduationCap, BarChart2 } from 'lucide-react';
 import { DEFAULT_CONFIG, SimulationState, BrainConfig } from './types';
-import { generateInitialState, processTick } from './services/simulationService';
+import { generateInitialState, processTick, trainTick, handleUserMessage } from './services/simulationService';
 import { MemoryGrid } from './components/MemoryGrid';
 import { PressureChart } from './components/PressureChart';
 import { SystemLogs } from './components/SystemLogs';
 import { ArchitectureDiagram } from './components/ArchitectureDiagram';
 import { ConfigPanel } from './components/ConfigPanel';
+import { EmotionModule } from './components/EmotionModule';
+import { ChatTerminal } from './components/ChatTerminal';
 
 const App: React.FC = () => {
   const [config, setConfig] = useState<BrainConfig>(DEFAULT_CONFIG);
@@ -14,19 +17,26 @@ const App: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [forceFlood, setForceFlood] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [mode, setMode] = useState<'INFERENCE' | 'TRAINING'>('INFERENCE');
 
   const tick = useCallback(() => {
-    setGameState(prev => processTick(prev, config, forceFlood));
-  }, [config, forceFlood]);
+    setGameState(prev => {
+        if (mode === 'TRAINING') {
+            return trainTick(prev, config);
+        } else {
+            return processTick(prev, config, forceFlood);
+        }
+    });
+  }, [config, forceFlood, mode]);
 
   // Auto-run effect
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     if (isRunning) {
-      interval = setInterval(tick, 500); // 2 ticks per second for demo visibility
+      interval = setInterval(tick, mode === 'TRAINING' ? 200 : 500); // 200ms for training to allow UI to breathe
     }
     return () => clearInterval(interval);
-  }, [isRunning, tick]);
+  }, [isRunning, tick, mode]);
 
   const handleReset = () => {
     setGameState(generateInitialState(config));
@@ -100,6 +110,20 @@ const App: React.FC = () => {
     setForceFlood(false);
     setIsSettingsOpen(false);
   };
+  
+  const handleEmotionOverride = (type: 'valence' | 'arousal' | 'dominance', value: number) => {
+    setGameState(prev => ({
+        ...prev,
+        emotionVector: {
+            ...prev.emotionVector,
+            [type]: value
+        }
+    }));
+  };
+
+  const handleChatMessage = (text: string) => {
+      setGameState(prev => handleUserMessage(prev, text));
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans relative">
@@ -123,16 +147,27 @@ const App: React.FC = () => {
           </p>
         </div>
         <div className="mt-4 md:mt-0 flex items-center gap-6 font-mono text-xs">
+           
+           {/* Mode Switcher */}
+           <div className="flex bg-slate-900 p-1 rounded border border-slate-700">
+               <button 
+                 onClick={() => { setMode('INFERENCE'); setIsRunning(false); }}
+                 className={`px-3 py-1 rounded transition-colors ${mode === 'INFERENCE' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+               >
+                 INFERENCE
+               </button>
+               <button 
+                 onClick={() => { setMode('TRAINING'); setIsRunning(false); }}
+                 className={`px-3 py-1 rounded transition-colors flex items-center gap-2 ${mode === 'TRAINING' ? 'bg-yellow-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+               >
+                 DISTILLATION
+               </button>
+           </div>
+
+           <div className="w-[1px] h-8 bg-slate-800"></div>
            <div className="flex flex-col items-end">
              <span className="text-slate-500">DEVICE_TARGET</span>
              <span className="text-green-400">NVIDIA_H100_EMULATOR</span>
-           </div>
-           <div className="w-[1px] h-8 bg-slate-800"></div>
-           <div className="flex flex-col items-end">
-             <span className="text-slate-500">STATUS</span>
-             <span className={isRunning ? "text-green-400 animate-pulse" : "text-yellow-500"}>
-               {isRunning ? "RUNNING" : "STANDBY"}
-             </span>
            </div>
            <div className="w-[1px] h-8 bg-slate-800"></div>
            <button 
@@ -152,16 +187,23 @@ const App: React.FC = () => {
         <div className="space-y-6">
           
           {/* Controls Panel */}
-          <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
-            <h2 className="text-sm font-bold text-slate-400 mb-4 tracking-wider">MANUAL_OVERRIDE</h2>
+          <div className={`bg-slate-900 border rounded-lg p-4 ${mode === 'TRAINING' ? 'border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.1)]' : 'border-slate-700'}`}>
+            <h2 className={`text-sm font-bold mb-4 tracking-wider flex items-center gap-2 ${mode === 'TRAINING' ? 'text-yellow-500' : 'text-slate-400'}`}>
+                {mode === 'TRAINING' ? <GraduationCap className="w-4 h-4" /> : null}
+                {mode === 'TRAINING' ? 'TEACHER_DISTILLATION_CONTROLS' : 'MANUAL_OVERRIDE'}
+            </h2>
             
             <div className="grid grid-cols-2 gap-3">
               <button 
                 onClick={() => setIsRunning(!isRunning)}
-                className={`flex items-center justify-center gap-2 p-3 rounded font-bold text-sm transition-all ${isRunning ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'bg-green-600 hover:bg-green-500 text-white'}`}
+                className={`flex items-center justify-center gap-2 p-3 rounded font-bold text-sm transition-all ${
+                    isRunning 
+                        ? 'bg-yellow-600 hover:bg-yellow-500 text-white' 
+                        : (mode === 'TRAINING' ? 'bg-yellow-700 hover:bg-yellow-600 text-white' : 'bg-green-600 hover:bg-green-500 text-white')
+                }`}
               >
                 {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                {isRunning ? "HALT_SYSTEM" : "INIT_SEQUENCE"}
+                {isRunning ? "HALT_SYSTEM" : (mode === 'TRAINING' ? "START_TRAINING" : "INIT_SEQUENCE")}
               </button>
 
               <button 
@@ -182,13 +224,15 @@ const App: React.FC = () => {
                 FORCE_EXPANSION
               </button>
 
-              <button 
-                onClick={toggleFlood}
-                className={`col-span-2 flex items-center justify-center gap-2 p-3 border rounded font-bold text-sm transition-all ${forceFlood ? 'bg-red-900/50 border-red-500 text-red-400 animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-400 hover:bg-slate-700'}`}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                {forceFlood ? "STRESS_TEST_ACTIVE (DISENGAGE)" : "SIMULATE_MEMORY_FLOOD"}
-              </button>
+              {mode === 'INFERENCE' && (
+                <button 
+                    onClick={toggleFlood}
+                    className={`col-span-2 flex items-center justify-center gap-2 p-3 border rounded font-bold text-sm transition-all ${forceFlood ? 'bg-red-900/50 border-red-500 text-red-400 animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-400 hover:bg-slate-700'}`}
+                >
+                    <AlertTriangle className="w-4 h-4" />
+                    {forceFlood ? "STRESS_TEST_ACTIVE (DISENGAGE)" : "SIMULATE_MEMORY_FLOOD"}
+                </button>
+              )}
 
                <button 
                 onClick={handleReset}
@@ -199,34 +243,82 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
+          
+          {/* TRAINING METRICS (Only in Training Mode) */}
+          {mode === 'TRAINING' && gameState.trainingMetrics && (
+             <div className="bg-slate-900 border border-yellow-500/30 rounded-lg p-4 space-y-4">
+                <h2 className="text-sm font-bold text-yellow-500 tracking-wider flex items-center gap-2">
+                    <BarChart2 className="w-4 h-4" /> LOSS_METRICS
+                </h2>
+                <div className="space-y-2">
+                    <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">TOTAL_LOSS</span>
+                        <span className="font-mono text-white font-bold">{gameState.trainingMetrics.totalLoss.toFixed(4)}</span>
+                    </div>
+                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-yellow-500 h-full transition-all duration-300" style={{ width: `${Math.min(100, gameState.trainingMetrics.totalLoss * 20)}%` }}></div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1 mt-2">
+                        <div className="bg-slate-800 p-1 rounded text-center">
+                            <div className="text-[8px] text-slate-500">ACT</div>
+                            <div className="text-[10px] font-mono text-cyan-300">{gameState.trainingMetrics.lossAct.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-slate-800 p-1 rounded text-center">
+                            <div className="text-[8px] text-slate-500">VAL</div>
+                            <div className="text-[10px] font-mono text-green-300">{gameState.trainingMetrics.lossVal.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-slate-800 p-1 rounded text-center">
+                            <div className="text-[8px] text-slate-500">EMO</div>
+                            <div className="text-[10px] font-mono text-pink-300">{gameState.trainingMetrics.lossEmo.toFixed(2)}</div>
+                        </div>
+                         <div className="bg-slate-800 p-1 rounded text-center">
+                            <div className="text-[8px] text-slate-500">WS</div>
+                            <div className="text-[10px] font-mono text-indigo-300">{gameState.trainingMetrics.lossWs.toFixed(2)}</div>
+                        </div>
+                    </div>
+                </div>
+             </div>
+          )}
 
-          {/* Stats Panel */}
-          <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 space-y-4">
-            <h2 className="text-sm font-bold text-slate-400 tracking-wider">TELEMETRY</h2>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-950 p-3 rounded border border-slate-800">
-                <div className="text-slate-500 text-[10px]">MEM_CAPACITY</div>
-                <div className="text-2xl font-mono text-cyan-400">{gameState.memoryCapacity}</div>
-                <div className="text-xs text-slate-600">SLOTS</div>
-              </div>
-              <div className="bg-slate-950 p-3 rounded border border-slate-800">
-                 <div className="text-slate-500 text-[10px]">PRESSURE_INDEX</div>
-                 <div className={`text-2xl font-mono ${gameState.currentPressure > config.expansionThreshold ? 'text-red-500' : 'text-green-400'}`}>
-                   {(gameState.currentPressure * 100).toFixed(1)}%
-                 </div>
-                 <div className="text-xs text-slate-600">UTILIZATION</div>
-              </div>
-            </div>
-
-            <div className="bg-slate-950 p-3 rounded border border-slate-800">
-                <div className="text-slate-500 text-[10px] mb-1">CURRENT_ACTION_OUTPUT</div>
-                <div className="text-xl font-mono text-white tracking-widest">{gameState.lastAction}</div>
-            </div>
+          {/* Emotion Engine Module */}
+          <div className="h-64">
+             <EmotionModule emotion={gameState.emotionVector} onManualOverride={handleEmotionOverride} />
           </div>
 
-           {/* Logs */}
-           <SystemLogs logs={gameState.logs} />
+          {/* Stats & Chat Section */}
+          <div className="flex flex-col gap-6">
+             
+             {/* Stats */}
+             <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 space-y-4">
+                <h2 className="text-sm font-bold text-slate-400 tracking-wider">TELEMETRY</h2>
+                <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-950 p-3 rounded border border-slate-800">
+                    <div className="text-slate-500 text-[10px]">MEM_CAPACITY</div>
+                    <div className="text-2xl font-mono text-cyan-400">{gameState.memoryCapacity}</div>
+                    <div className="text-xs text-slate-600">SLOTS</div>
+                </div>
+                <div className="bg-slate-950 p-3 rounded border border-slate-800">
+                    <div className="text-slate-500 text-[10px]">PRESSURE_INDEX</div>
+                    <div className={`text-2xl font-mono ${gameState.currentPressure > config.expansionThreshold ? 'text-red-500' : 'text-green-400'}`}>
+                    {(gameState.currentPressure * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-slate-600">UTILIZATION</div>
+                </div>
+                </div>
+                <div className="bg-slate-950 p-3 rounded border border-slate-800">
+                    <div className="text-slate-500 text-[10px] mb-1">CURRENT_ACTION_OUTPUT</div>
+                    <div className="text-xl font-mono text-white tracking-widest">{gameState.lastAction}</div>
+                </div>
+             </div>
+
+             {/* Chat Terminal */}
+             <div className="h-72">
+                <ChatTerminal history={gameState.chatHistory} onSendMessage={handleChatMessage} />
+             </div>
+
+             {/* System Logs */}
+             <SystemLogs logs={gameState.logs} />
+          </div>
 
         </div>
 
@@ -239,6 +331,7 @@ const App: React.FC = () => {
               thoughtVector={gameState.thoughtVector} 
               lastAction={gameState.lastAction}
               pressure={gameState.currentPressure}
+              isTraining={mode === 'TRAINING'}
             />
           </div>
 

@@ -1,18 +1,20 @@
+
 import React from 'react';
-import { ArrowDown, ArrowRight, Brain, Database, Cpu, Activity, MessageSquare } from 'lucide-react';
+import { ArrowDown, Cpu, Database, Activity, MessageSquare, GraduationCap } from 'lucide-react';
 
 interface ArchitectureDiagramProps {
   thoughtVector: number[];
   lastAction: string;
   pressure: number;
+  isTraining?: boolean;
 }
 
-export const ArchitectureDiagram: React.FC<ArchitectureDiagramProps> = ({ thoughtVector, lastAction, pressure }) => {
+export const ArchitectureDiagram: React.FC<ArchitectureDiagramProps> = ({ thoughtVector, lastAction, pressure, isTraining }) => {
   return (
-    <div className="relative w-full h-full bg-slate-900/50 rounded-lg border border-slate-700 flex flex-col items-center justify-center p-8">
+    <div className="relative w-full h-full bg-slate-900/50 rounded-lg border border-slate-700 flex flex-col items-center justify-center p-8 overflow-hidden">
       
       {/* Top: Inputs */}
-      <div className="flex gap-12 mb-12">
+      <div className="flex gap-12 mb-12 relative z-10">
         <div className="flex flex-col items-center">
           <div className="w-24 h-12 bg-slate-800 border border-slate-600 rounded flex items-center justify-center text-xs text-slate-300 shadow-lg">
             OBSERVATION
@@ -64,7 +66,7 @@ export const ArchitectureDiagram: React.FC<ArchitectureDiagramProps> = ({ though
       </div>
 
       {/* Bottom: Outputs */}
-      <div className="flex gap-12 mt-12">
+      <div className="flex gap-12 mt-12 relative z-10">
         <div className="flex flex-col items-center">
           <ArrowDown className="text-slate-500 mb-2 animate-pulse" />
           <div className="w-32 h-12 bg-slate-800 border border-slate-600 rounded flex items-center justify-center text-xs text-slate-300 shadow-lg gap-2">
@@ -88,9 +90,20 @@ export const ArchitectureDiagram: React.FC<ArchitectureDiagramProps> = ({ though
         </div>
       </div>
 
+      {/* Training Overlay */}
+      {isTraining && (
+          <div className="absolute top-4 right-4 z-20 bg-yellow-500/10 border border-yellow-500/50 p-2 rounded flex items-center gap-2 animate-pulse">
+             <GraduationCap className="w-5 h-5 text-yellow-500" />
+             <div className="text-[10px] text-yellow-500 font-bold uppercase">Distillation Active</div>
+          </div>
+      )}
+
       {/* Feedback Loop Line (Decorative) */}
       <svg className="absolute inset-0 pointer-events-none w-full h-full" style={{zIndex: 0}}>
         <path d="M 60% 80% L 60% 90% L 95% 90% L 95% 10% L 55% 10% L 55% 20%" fill="none" stroke="#6366f1" strokeWidth="2" strokeDasharray="5,5" strokeOpacity="0.3" />
+        {isTraining && (
+             <path d="M 50% 10% L 50% 50%" fill="none" stroke="#eab308" strokeWidth="2" strokeDasharray="2,2" strokeOpacity="0.5" />
+        )}
       </svg>
     </div>
   );
